@@ -1,10 +1,10 @@
 #pragma once
 
+#include "contact/relay_contact.hpp"
+#include "contact/router_id.hpp"
 #include "crypto/crypto.hpp"
 #include "dht/key.hpp"
 #include "router/router.hpp"
-#include "router_contact.hpp"
-#include "router_id.hpp"
 #include "util/common.hpp"
 #include "util/thread/threading.hpp"
 
@@ -96,7 +96,7 @@ namespace llarp
 
         std::chrono::milliseconds _next_flush_time;
 
-        /******** RouterID/RouterContacts ********/
+        /******** RouterID/RelayContacts ********/
 
         using Lock_t = util::NullLock;
         mutable util::NullMutex nodedb_mutex;

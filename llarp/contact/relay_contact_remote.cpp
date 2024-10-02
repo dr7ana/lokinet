@@ -1,16 +1,10 @@
-#include "constants/version.hpp"
-#include "crypto/crypto.hpp"
-#include "net/net.hpp"
-#include "router_contact.hpp"
-#include "util/buffer.hpp"
-#include "util/file.hpp"
-#include "util/time.hpp"
+#include "relay_contact.hpp"
 
 #include <oxenc/bt_serialize.h>
 
 namespace llarp
 {
-    static auto logcat = log::Cat("RC");
+    static auto logcat = log::Cat("relay-contact");
 
     RemoteRC::RemoteRC(oxenc::bt_dict_consumer btdc)
     {

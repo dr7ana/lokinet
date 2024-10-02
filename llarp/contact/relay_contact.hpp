@@ -1,12 +1,15 @@
 #pragma once
 
 #include "router_id.hpp"
-#include "router_version.hpp"
 
 #include <llarp/constants/version.hpp>
-#include <llarp/crypto/types.hpp>
+#include <llarp/crypto/crypto.hpp>
 #include <llarp/dns/srv_data.hpp>
+#include <llarp/net/net.hpp>
+#include <llarp/router_version.hpp>
 #include <llarp/util/aligned.hpp>
+#include <llarp/util/buffer.hpp>
+#include <llarp/util/file.hpp>
 #include <llarp/util/time.hpp>
 
 #include <nlohmann/json.hpp>
@@ -21,7 +24,7 @@ namespace llarp
     inline static constexpr size_t NETID_SIZE{8};
 
     /// On the wire we encode the data as a dict containing:
-    /// ""  -- the RC format version, which must be == RouterContact::Version for us to attempt to
+    /// ""  -- the RC format version, which must be == RelayContact::Version for us to attempt to
     ///        parse the reset of the fields.  (Future versions might have backwards-compat support
     ///        for lower versions).
     /// "4" -- 6 byte packed IPv4 address & port: 4 bytes of IPv4 address followed by 2 bytes of
@@ -37,29 +40,29 @@ namespace llarp
     ///        MAJOR, MINOR, PATCH, e.g. \x00\x0a\x03 for 0.10.3.
     /// "~" -- signature of all of the previous serialized data, signed by "p"
 
-    /// RouterContact
-    struct RouterContact
+    /// RelayContact
+    struct RelayContact
     {
-        static constexpr uint8_t RC_VERSION = 0;
+        static constexpr uint8_t RC_VERSION{0};
 
         /// Unit tests disable this to allow private IP ranges in RCs, which normally get rejected.
-        inline static bool BLOCK_BOGONS = true;
+        inline static bool BLOCK_BOGONS{true};
 
         inline static std::string ACTIVE_NETID{LOKINET_DEFAULT_NETID};
 
-        inline static constexpr size_t MAX_RC_SIZE = 1024;
+        inline static constexpr size_t MAX_RC_SIZE{1024};
 
         /// How long (from its signing time) before an RC is considered "stale".  Relays republish
         /// their RCs slightly more frequently than this so that ideally this won't happen.
-        static constexpr auto STALE_AGE = 6h;
+        static constexpr auto STALE_AGE{6h};
 
         /// How long (from its signing time) before an RC becomes "outdated".  Outdated records are
         /// used (e.g. for path building) only if there are no newer records available, such as
         /// might be the case when a client has been turned off for a while.
-        static constexpr auto OUTDATED_AGE = 12h;
+        static constexpr auto OUTDATED_AGE{12h};
 
         /// How long before an RC becomes invalid (and thus deleted).
-        static constexpr auto LIFETIME = 30 * 24h;
+        static constexpr auto LIFETIME{30 * 24h};
 
         ustring_view view() const { return _payload; }
 
@@ -112,15 +115,15 @@ namespace llarp
 
         bool write(const fs::path& fname) const;
 
-        auto operator<=>(const RouterContact& other) const
+        auto operator<=>(const RelayContact& other) const
         {
             return std::tie(_router_id, _addr, _addr6, _timestamp, _router_version)
                 <=> std::tie(other._router_id, other._addr, other._addr6, other._timestamp, other._router_version);
         }
 
-        bool operator==(const RouterContact& other) const { return (*this <=> other) == 0; }
+        bool operator==(const RelayContact& other) const { return (*this <=> other) == 0; }
 
-        bool operator<(const RouterContact& other) const { return _router_id < other._router_id; }
+        bool operator<(const RelayContact& other) const { return _router_id < other._router_id; }
 
         virtual void clear() {}
 
@@ -138,11 +141,11 @@ namespace llarp
         /// get the age of this RC in ms
         std::chrono::milliseconds age(std::chrono::milliseconds now) const;
 
-        bool other_is_newer(const RouterContact& other) const { return _timestamp < other._timestamp; }
+        bool other_is_newer(const RelayContact& other) const { return _timestamp < other._timestamp; }
 
         bool is_obsolete_bootstrap() const;
 
-        static bool is_obsolete(const RouterContact& rc);
+        static bool is_obsolete(const RelayContact& rc);
 
         void bt_verify(oxenc::bt_dict_consumer& data, bool reject_expired = false) const;
 
@@ -153,14 +156,14 @@ namespace llarp
 
     struct RemoteRC;
 
-    /// Extension of RouterContact used to store a local "RC," and inserts a RouterContact by
+    /// Extension of RelayContact used to store a local "RC," and inserts a RelayContact by
     /// re-parsing and sending it out. This sub-class contains a pubkey and all the other attributes
     /// required for signing and serialization
     ///
     /// Note: this class may be entirely superfluous, so it is used here as a placeholder until its
     /// marginal utility is determined. It may end up as a free-floating method that reads in
     /// parameters and outputs a bt-serialized string
-    struct LocalRC final : public RouterContact
+    struct LocalRC final : public RelayContact
     {
         static LocalRC make(Ed25519SecretKey secret, oxen::quic::Address local);
 
@@ -238,9 +241,9 @@ namespace llarp
         void set_systime_timestamp() { set_timestamp(time_point_now()); }
     };
 
-    /// Extension of RouterContact used in a "read-only" fashion. Parses the incoming RC to query
+    /// Extension of RelayContact used in a "read-only" fashion. Parses the incoming RC to query
     /// the data in the constructor, eliminating the need for a ::verify method/
-    struct RemoteRC final : public RouterContact
+    struct RemoteRC final : public RelayContact
     {
       private:
         // this ctor is private because it doesn't set ::_payload
@@ -285,19 +288,19 @@ namespace llarp
 namespace std
 {
     template <>
-    struct hash<llarp::RouterContact>
+    struct hash<llarp::RelayContact>
     {
-        virtual size_t operator()(const llarp::RouterContact& r) const
+        virtual size_t operator()(const llarp::RelayContact& r) const
         {
             return std::hash<llarp::PubKey>{}(r.router_id());
         }
     };
 
     template <>
-    struct hash<llarp::RemoteRC> : public hash<llarp::RouterContact>
+    struct hash<llarp::RemoteRC> : public hash<llarp::RelayContact>
     {};
 
     template <>
-    struct hash<llarp::LocalRC> final : public hash<llarp::RouterContact>
+    struct hash<llarp::LocalRC> final : public hash<llarp::RelayContact>
     {};
 }  // namespace std

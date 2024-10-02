@@ -231,7 +231,7 @@ namespace llarp::handlers
     }
 
     void SessionEndpoint::lookup_intro(
-        RouterID remote, bool is_relayed, uint64_t order, std::function<void(std::optional<service::IntroSet>)> func)
+        RouterID remote, bool is_relayed, uint64_t order, std::function<void(std::optional<service::IntroSetOld>)> func)
     {
         if (auto maybe_intro = _router.contacts().get_decrypted_introset(remote))
         {
@@ -292,15 +292,23 @@ namespace llarp::handlers
         const auto now = llarp::time_now_ms();
         _last_introset_regen_attempt = now;
 
-        std::set<service::Introduction, service::IntroExpiryComparator> path_intros;
+        // service::IntroductionSet path_intros;
 
-        if (auto maybe_intros = get_path_intros_conditional([now](const service::Introduction& intro) -> bool {
-                return not intro.expires_soon(now, path::INTRO_STALE_THRESHOLD);
-            }))
-        {
-            path_intros.merge(*maybe_intros);
-        }
-        else
+        // if (auto maybe_intros = get_path_intros_conditional([now](const service::Introduction& intro) -> bool {
+        //         return not intro.expires_soon(path::INTRO_STALE_THRESHOLD, now);
+        //     }))
+        // {
+        //     path_intros.merge(*maybe_intros);
+        // }
+        // else
+        // {
+        //     log::warning(logcat, "Failed to get enough valid path introductions to publish introset!");
+        //     return build_more(1);
+        // }
+
+        service::intro_que_old _path_intros = get_recent_path_intros();
+
+        if (_path_intros.empty())
         {
             log::warning(logcat, "Failed to get enough valid path introductions to publish introset!");
             return build_more(1);
@@ -326,15 +334,18 @@ namespace llarp::handlers
         auto& intros = _local_introset.intros;
         intros.clear();
 
-        for (auto& intro : path_intros)
+        auto n_needed = num_paths_desired;
+
+        while (--n_needed)
         {
-            if (intros.size() < num_paths_desired)
-                intros.emplace(std::move(intro));
+            intros.emplace(_path_intros.top());
+            _path_intros.pop();
         }
 
         // We already check that path_intros is not empty, so we can assert here
         assert(not intros.empty());
 
+        // TESTNET: TODO: change to key_manager method
         if (auto maybe_encrypted = _identity.encrypt_and_sign_introset(_local_introset, now))
         {
             if (publish_introset(*maybe_encrypted))
@@ -483,7 +494,7 @@ namespace llarp::handlers
     }
 
     void SessionEndpoint::_make_session_path(
-        service::IntroductionSet intros, NetworkAddress remote, on_session_init_hook cb, bool is_exit)
+        service::IntroductionSet_old intros, NetworkAddress remote, on_session_init_hook cb, bool is_exit)
     {
         // we can recurse through this function as we remove the first pivot of the set of introductions every
         // invocation
@@ -578,7 +589,7 @@ namespace llarp::handlers
                 false,
                 0,
                 [this, remote, hook = std::move(handler), is_exit, counter](
-                    std::optional<service::IntroSet> intro) mutable {
+                    std::optional<service::IntroSetOld> intro) mutable {
                     // already have a successful return
                     if (*counter == 0)
                         return;

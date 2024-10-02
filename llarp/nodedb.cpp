@@ -4,7 +4,6 @@
 #include "dht/kademlia.hpp"
 #include "link/link_manager.hpp"
 #include "messages/fetch.hpp"
-#include "router_contact.hpp"
 #include "util/time.hpp"
 
 #include <algorithm>
@@ -411,7 +410,7 @@ namespace llarp
 
             for (const auto& [rid, rc] : rc_lookup)
             {
-                if (now - rc.timestamp() > RouterContact::OUTDATED_AGE)
+                if (now - rc.timestamp() > RelayContact::OUTDATED_AGE)
                     needed.push_back(rid);
             }
 
@@ -655,9 +654,9 @@ namespace llarp
         _rc_fetch_ticker->stop();
 
         if (success)
-            log::info(logcat, "Client successfully completed RouterContact fetch!");
+            log::info(logcat, "Client successfully completed RelayContact fetch!");
         else
-            log::warning(logcat, "Client stopped RouterContact fetch without a sucessful response!");
+            log::warning(logcat, "Client stopped RelayContact fetch without a sucessful response!");
     }
 
     void NodeDB::stop_rid_fetch(bool success)
@@ -991,7 +990,7 @@ namespace llarp
     {
         auto cutoff_time = time_point_now();
 
-        cutoff_time -= _is_service_node ? RouterContact::OUTDATED_AGE : RouterContact::LIFETIME;
+        cutoff_time -= _is_service_node ? RelayContact::OUTDATED_AGE : RelayContact::LIFETIME;
 
         for (auto itr = rc_lookup.begin(); itr != rc_lookup.end();)
         {

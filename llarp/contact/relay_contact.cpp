@@ -1,18 +1,12 @@
-#include "router_contact.hpp"
-
-#include "constants/version.hpp"
-#include "crypto/crypto.hpp"
-#include "net/net.hpp"
-#include "util/buffer.hpp"
-#include "util/file.hpp"
+#include "relay_contact.hpp"
 
 #include <oxenc/bt_serialize.h>
 
 namespace llarp
 {
-    static auto logcat = log::Cat("RC");
+    static auto logcat = log::Cat("relay-contact");
 
-    void RouterContact::bt_verify(oxenc::bt_dict_consumer& btdc, bool reject_expired) const
+    void RelayContact::bt_verify(oxenc::bt_dict_consumer& btdc, bool reject_expired) const
     {
         btdc.require_signature("~", [this, reject_expired](ustring_view msg, ustring_view sig) {
             if (sig.size() != 64)
@@ -38,7 +32,7 @@ namespace llarp
         btdc.finish();
     }
 
-    void RouterContact::bt_load(oxenc::bt_dict_consumer& btdc)
+    void RelayContact::bt_load(oxenc::bt_dict_consumer& btdc)
     {
         if (int rc_ver = btdc.require<uint8_t>(""); rc_ver != RC_VERSION)
             throw std::runtime_error{"Invalid RC: do not know how to parse v{} RCs"_format(rc_ver)};
@@ -104,7 +98,7 @@ namespace llarp
             _router_version[i] = ver[i];
     }
 
-    bool RouterContact::write(const fs::path& fname) const
+    bool RelayContact::write(const fs::path& fname) const
     {
         auto bte = view();
 
@@ -120,7 +114,7 @@ namespace llarp
         return true;
     }
 
-    nlohmann::json RouterContact::extract_status() const
+    nlohmann::json RelayContact::extract_status() const
     {
         nlohmann::json obj{
             {"lastUpdated", _timestamp.time_since_epoch().count()},
@@ -142,7 +136,7 @@ namespace llarp
         return obj;
     }
 
-    bool RouterContact::is_public_addressable() const
+    bool RelayContact::is_public_addressable() const
     {
         if (_router_version.empty())
             return false;
@@ -150,24 +144,24 @@ namespace llarp
         return _addr.is_addressable();
     }
 
-    bool RouterContact::is_expired(std::chrono::milliseconds now) const
+    bool RelayContact::is_expired(std::chrono::milliseconds now) const
     {
         return age(now) >= _timestamp.time_since_epoch() + LIFETIME;
     }
 
-    std::chrono::milliseconds RouterContact::time_to_expiry(std::chrono::milliseconds now) const
+    std::chrono::milliseconds RelayContact::time_to_expiry(std::chrono::milliseconds now) const
     {
         const auto expiry = _timestamp.time_since_epoch() + LIFETIME;
         return now < expiry ? expiry - now : 0s;
     }
 
-    std::chrono::milliseconds RouterContact::age(std::chrono::milliseconds now) const
+    std::chrono::milliseconds RelayContact::age(std::chrono::milliseconds now) const
     {
         auto delta = now - _timestamp.time_since_epoch();
         return delta > 0s ? delta : 0s;
     }
 
-    bool RouterContact::expires_within_delta(std::chrono::milliseconds now, std::chrono::milliseconds dlt) const
+    bool RelayContact::expires_within_delta(std::chrono::milliseconds now, std::chrono::milliseconds dlt) const
     {
         return time_to_expiry(now) <= dlt;
     }
@@ -177,7 +171,7 @@ namespace llarp
         "e6b3a6fe5e32c379b64212c72232d65b0b88ddf9bbaed4997409d329f8519e0b"sv,
     };
 
-    bool RouterContact::is_obsolete_bootstrap() const
+    bool RelayContact::is_obsolete_bootstrap() const
     {
         for (const auto& k : obsolete_bootstraps)
         {
@@ -187,7 +181,7 @@ namespace llarp
         return false;
     }
 
-    bool RouterContact::is_obsolete(const RouterContact& rc)
+    bool RelayContact::is_obsolete(const RelayContact& rc)
     {
         const auto& hex = rc._router_id.ToHex();
 

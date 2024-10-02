@@ -36,9 +36,7 @@ namespace llarp::service
     {
         _idkey.zero();
         _enckey.zero();
-        pq.zero();
         derivedSignKey.zero();
-        vanity.zero();
     }
 
     void Identity::regenerate_keys()
@@ -47,8 +45,6 @@ namespace llarp::service
         crypto::encryption_keygen(_enckey);
 
         pub.update(seckey_to_pubkey(_idkey), seckey_to_pubkey(_enckey));
-
-        crypto::pqe_keygen(pq);
 
         if (not crypto::derive_subkey_private(derivedSignKey, _idkey, 1))
         {
@@ -68,14 +64,14 @@ namespace llarp::service
     }
 
     std::optional<EncryptedIntroSet> Identity::encrypt_and_sign_introset(
-        const IntroSet& other_i, std::chrono::milliseconds now) const
+        const IntroSetOld& other_i, std::chrono::milliseconds now) const
     {
         EncryptedIntroSet encrypted;
 
         if (other_i.intros.empty())
             return std::nullopt;
 
-        IntroSet i{other_i};
+        IntroSetOld i{other_i};
         encrypted.nonce.Randomize();
         // set timestamp
         // TODO: round to nearest 1000 ms
@@ -83,8 +79,6 @@ namespace llarp::service
         encrypted.signed_at = now;
         // set service info
         i.address_keys = pub;
-        // set public encryption key
-        i.sntru_pubkey = pq_keypair_to_pubkey(pq);
 
         auto bte = i.bt_encode();
 
