@@ -1,8 +1,8 @@
 #include "link_manager.hpp"
 
 #include "connection.hpp"
-#include "contacts.hpp"
 
+#include <llarp/contact/contactdb.hpp>
 #include <llarp/contact/router_id.hpp>
 #include <llarp/messages/dht.hpp>
 #include <llarp/messages/exit.hpp>
@@ -261,9 +261,9 @@ namespace llarp
             _router._gossip_interval,
             [this]() {
                 log::critical(logcat, "Regenerating and gossiping RC...");
-                _router.router_contact.resign();
+                _router.relay_contact.resign();
                 _router.save_rc();
-                gossip_rc(_router.local_rid(), _router.router_contact.to_remote());
+                gossip_rc(_router.local_rid(), _router.relay_contact.to_remote());
             },
             true);
     }
@@ -1192,7 +1192,7 @@ namespace llarp
                     "Received PublishIntroMessage in which we are peer index {}.. storing introset",
                     relay_order);
 
-                _router.contacts().put_intro(std::move(enc));
+                _router.contact_db().put_intro(std::move(enc));
                 respond(messages::OK_RESPONSE);
             }
             else
@@ -1229,7 +1229,7 @@ namespace llarp
         {
             log::info(logcat, "Received PublishIntroMessage for {}; we are candidate {}", addr, relay_order);
 
-            _router.contacts().put_intro(std::move(enc));
+            _router.contact_db().put_intro(std::move(enc));
             respond(messages::OK_RESPONSE);
         }
         else
@@ -1356,7 +1356,7 @@ namespace llarp
         }
         else
         {
-            if (auto maybe_intro = _router.contacts().get_encrypted_introset(addr))
+            if (auto maybe_intro = _router.contact_db().get_encrypted_introset(addr))
                 respond(serialize_response({{"INTROSET", maybe_intro->bt_encode()}}));
             else
             {
@@ -1366,6 +1366,7 @@ namespace llarp
         }
     }
 
+    // TONUKE:
     void LinkManager::handle_find_intro_response(oxen::quic::message m)
     {
         if (m.timed_out)
@@ -1374,32 +1375,32 @@ namespace llarp
             return;
         }
 
-        std::string payload;
+        // std::string payload;
 
-        try
-        {
-            oxenc::bt_dict_consumer btdc{m.body()};
-            payload = btdc.require<std::string>((m) ? "INTROSET" : messages::STATUS_KEY);
-        }
-        catch (const std::exception& e)
-        {
-            log::warning(logcat, "Exception: {}", e.what());
-            return;
-        }
+        // try
+        // {
+        //     oxenc::bt_dict_consumer btdc{m.body()};
+        //     payload = btdc.require<std::string>((m) ? "INTROSET" : messages::STATUS_KEY);
+        // }
+        // catch (const std::exception& e)
+        // {
+        //     log::warning(logcat, "Exception: {}", e.what());
+        //     return;
+        // }
 
-        // success case, neither timed out nor errored
-        if (m)
-        {
-            if (auto enc = service::EncryptedIntroSet::construct(payload))
-            {
-                _router.contacts().put_intro(std::move(*enc));
-            }
-        }
-        else
-        {
-            log::info(logcat, "FindIntroMessage failed with error: {}", payload);
-            // Do something smart here probably
-        }
+        // // success case, neither timed out nor errored
+        // if (m)
+        // {
+        //     if (auto enc = service::EncryptedIntroSet::construct(payload))
+        //     {
+        //         _router.contact_db().put_intro(std::move(*enc));
+        //     }
+        // }
+        // else
+        // {
+        //     log::info(logcat, "FindIntroMessage failed with error: {}", payload);
+        //     // Do something smart here probably
+        // }
     }
 
     void LinkManager::handle_path_build(oxen::quic::message m, const RouterID& from)
